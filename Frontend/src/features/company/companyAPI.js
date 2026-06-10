@@ -1,6 +1,6 @@
 
 
-const API_BASE_URL = "https://company-management-5yta.onrender.com"
+const API_BASE_URL = "https://company-management-backend-irc6.onrender.com"
 
 const createCompany = async (data) => {
   try {
