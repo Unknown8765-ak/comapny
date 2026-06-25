@@ -1,3 +1,5 @@
+const API_BASE_URL = "https://company-management-backend-irc6.onrender.com/api/v1/payment"
+
 const processPaymentAPI = async (plan) => {
 
   const response = await fetch(`${API_BASE_URL}/process`,
