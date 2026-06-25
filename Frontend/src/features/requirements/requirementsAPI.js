@@ -1,6 +1,6 @@
 // src/features/requirements/requirementAPI.js
 
-const API_BASE_URL = "https://company-management-backend-irc6.onrender.com"
+const API_BASE_URL = "https://company-management-backend-irc6.onrender.com/api/v1/requirements"
 
 
 export const createRequirementAPI = async (data) => {
