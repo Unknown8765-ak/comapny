@@ -1,4 +1,4 @@
-const API_BASE_URL = "https://company-management-backend-irc6.onrender.com/api/v1"
+const API_BASE_URL = "https://company-management-backend-irc6.onrender.com/api/v1/departments"
 
 
 export const createDepartmentAPI = async (data) => {
