@@ -1,19 +1,18 @@
 import { useEffect, useState } from "react";
-import {
-  getCompanies,
-  createCompany,
-  deleteCompany,
-  updateCompany
-} from "../features/company/companyAPI";
+import {getCompanies,createCompany,deleteCompany,updateCompany,getCompanyDashboardAPI} from "../features/company/companyAPI";
+import CompanyDetailsModal from "../components/CompanyDetails";
+import LogoutButton from "../components/LogoutButton";
 
 export default function SuperAdminDashboard() {
 
   const [active, setActive] = useState("dashboard");
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(false);
-
+  const [showCompanyModal, setShowCompanyModal] = useState(false);
+  const [selectedCompany, setSelectedCompany] = useState(null);
+  const [companyStats, setCompanyStats] = useState(null);
   const [showModal, setShowModal] = useState(false);
-  const [editId, setEditId] = useState(null);
+  const [search, setSearch] = useState("");
 
   const [form, setForm] = useState({
     name: "",
@@ -24,6 +23,18 @@ export default function SuperAdminDashboard() {
     adminPassword: ""
   });
 
+  const handleViewCompany = async (companyId) => {
+
+  try {
+    const res = await getCompanyDashboardAPI(companyId);
+    console.log(res)
+    setSelectedCompany(res.data.company);
+    setCompanyStats(res.data.stats);
+    setShowCompanyModal(true);
+  } catch (err) {
+    console.log(err);
+  }
+};
   // 🔥 FETCH
   const fetchCompanies = async () => {
     setLoading(true);
@@ -41,28 +52,28 @@ export default function SuperAdminDashboard() {
     fetchCompanies();
   }, []);
 
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
+ const handleChange = (e) => {
+  setForm({
+    ...form,
+    [e.target.name]: e.target.value
+  });
+};
 
   const handleSubmit = async () => {
-    try {
-      if (editId) {
-        await updateCompany(editId, form);
-        alert("Updated ✅");
-      } else {
-        await createCompany(form);
-        alert("Created ✅");
-      }
+  try {
 
-      setShowModal(false);
-      setEditId(null);
-      fetchCompanies();
+    await createCompany(form);
 
-    } catch (err) {
-      alert(err.message);
-    }
-  };
+    alert("Created ✅");
+
+    setShowModal(false);
+
+    fetchCompanies();
+
+  } catch (err) {
+    alert(err.message);
+  }
+};
 
   const handleDelete = async (id) => {
     if (!confirm("Delete?")) return;
@@ -70,19 +81,9 @@ export default function SuperAdminDashboard() {
     fetchCompanies();
   };
 
-  const handleEdit = (c) => {
-    setEditId(c._id);
-    setShowModal(true);
-    setForm({
-      name: c.name,
-      email: c.email,
-      plan: c.plan,
-      adminName: "",
-      adminEmail: "",
-      adminPassword: ""
-    });
-  };
-
+const filteredCompanies = companies.filter((c) =>
+  c.name.toLowerCase().includes(search.toLowerCase())
+);
   // 🔥 CONTENT
   const renderContent = () => {
 
@@ -105,8 +106,25 @@ export default function SuperAdminDashboard() {
           <div className="bg-white p-8 rounded-2xl shadow-md border border-gray-200">
 
             {/* HEADER */}
+
             <div className="flex justify-between items-center mb-6">
               <h1 className="text-2xl font-bold">Companies</h1>
+              <div className="flex gap-3 mb-4">
+                    <input
+                      type="text"
+                      placeholder="Search company..."
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      className="border p-2 rounded-lg"
+                    />
+
+                    <button
+                      onClick={() => setSearch("")}
+                      className="bg-gray-500 text-white px-4 py-2 rounded-lg"
+                    >
+                      Reset
+                    </button>
+                  </div>
 
               <button
                 onClick={() => setShowModal(true)}
@@ -118,7 +136,9 @@ export default function SuperAdminDashboard() {
 
             {/* TABLE */}
             {loading ? (
-              <p className="text-gray-500">Loading...</p>
+              <div className="flex justify-center items-center py-10">
+                <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+              </div>
             ) : (
               <table className="w-full border border-gray-200 rounded-xl overflow-hidden">
 
@@ -133,7 +153,7 @@ export default function SuperAdminDashboard() {
                 </thead>
 
                 <tbody>
-                  {companies.map((c, index) => (
+                  {filteredCompanies.map((c, index) => (
                     <tr
                       key={c._id}
                       className={`text-sm ${
@@ -168,10 +188,10 @@ export default function SuperAdminDashboard() {
                       <td className="p-3 border-b space-x-2">
 
                         <button
-                          onClick={() => handleEdit(c)}
-                          className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded"
+                          onClick={() => handleViewCompany(c._id)}
+                          className="bg-blue-500 text-white px-3 py-1 rounded"
                         >
-                          Edit
+                          View
                         </button>
 
                         <button
@@ -188,7 +208,13 @@ export default function SuperAdminDashboard() {
                 </tbody>
 
               </table>
+              
             )}
+            {filteredCompanies.length === 0 && (
+  <p className="text-center text-gray-500 mt-4">
+    No companies found 😕
+  </p>
+)}
 
           </div>
         </div>
@@ -197,16 +223,19 @@ export default function SuperAdminDashboard() {
   };
 
   return (
-    <div className="min-h-screen flex bg-gray-100">
+  <div className="flex min-h-screen bg-linear-to-br from-gray-100 to-gray-200">
 
-      {/* SIDEBAR */}
-      <div className="w-64 bg-linear-to-b from-gray-900 to-gray-800 text-white p-6 shadow-xl">
+      <div className="w-64 bg-linear-to-b from-gray-900 via-gray-800 to-gray-900 
+text-white p-5 shadow-2xl flex flex-col">
 
         <h2 className="text-2xl font-bold mb-8">🚀 Super Admin</h2>
 
         <SidebarItem label="Dashboard" id="dashboard" setActive={setActive} />
         <SidebarItem label="Companies" id="companies" setActive={setActive} />
 
+ <div className="mt-auto p-4">
+    <LogoutButton />
+  </div>
       </div>
 
       {/* CONTENT */}
@@ -214,6 +243,13 @@ export default function SuperAdminDashboard() {
         {renderContent()}
       </div>
 
+        <CompanyDetailsModal
+          showCompanyModal={showCompanyModal}
+          setShowCompanyModal={setShowCompanyModal}
+          selectedCompany={selectedCompany}
+          companyStats={companyStats}
+          fetchCompanies={fetchCompanies}
+        />
       {/* MODAL */}
       {showModal && (
         <div className="fixed inset-0 bg-black/40 flex justify-center items-center">
@@ -221,8 +257,8 @@ export default function SuperAdminDashboard() {
           <div className="bg-white p-6 rounded-xl w-96 shadow-lg">
 
             <h2 className="text-lg font-bold mb-4">
-              {editId ? "Edit Company" : "Create Company"}
-            </h2>
+  Create Company
+</h2>
 
             <input name="name" placeholder="Name"
               className="w-full border p-2 mb-2 rounded"
@@ -239,21 +275,32 @@ export default function SuperAdminDashboard() {
               <option value="pro">Pro</option>
             </select>
 
-            {!editId && (
-              <>
-                <input name="adminName" placeholder="Admin Name"
-                  className="w-full border p-2 mb-2 rounded"
-                  value={form.adminName} onChange={handleChange} />
+            <>
+  <input
+    name="adminName"
+    placeholder="Admin Name"
+    className="w-full border p-2 mb-2 rounded"
+    value={form.adminName}
+    onChange={handleChange}
+  />
 
-                <input name="adminEmail" placeholder="Admin Email"
-                  className="w-full border p-2 mb-2 rounded"
-                  value={form.adminEmail} onChange={handleChange} />
+  <input
+    name="adminEmail"
+    placeholder="Admin Email"
+    className="w-full border p-2 mb-2 rounded"
+    value={form.adminEmail}
+    onChange={handleChange}
+  />
 
-                <input name="adminPassword" type="password" placeholder="Password"
-                  className="w-full border p-2 mb-2 rounded"
-                  value={form.adminPassword} onChange={handleChange} />
-              </>
-            )}
+  <input
+    name="adminPassword"
+    type="password"
+    placeholder="Password"
+    className="w-full border p-2 mb-2 rounded"
+    value={form.adminPassword}
+    onChange={handleChange}
+  />
+</>
 
             <div className="flex justify-end gap-2 mt-4">
               <button
