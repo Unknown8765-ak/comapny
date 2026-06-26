@@ -10,8 +10,8 @@ import { verifyJWT } from "../middlewares/auth.middleware.js";
 const router = express.Router();
 
 router.post("/", verifyJWT,createLeave);
-router.get("/me", verifyJWT, getMyLeaves);
-router.get("/", verifyJWT, getAllLeaves);
+router.get("/my", verifyJWT, getMyLeaves);
+router.get("/all", verifyJWT, getAllLeaves);
 router.patch("/:id/status", verifyJWT,updateLeaveStatus);
 
 
