@@ -1,25 +1,27 @@
 import { useEffect, useState } from "react"
 import { useSelector } from "react-redux"
 import { createTaskAPI } from "../features/tasks/tasksAPI.js"
+import { useDispatch } from "react-redux"
+import { useNavigate } from "react-router-dom"
+import { logout  } from "../features/auth/authSlice"
+
 
 import { getDepartmentsAPI } from "../features/departments/departmentAPI.js"
-import {
-  getAllEmployeesAPI,
-  deleteEmployeeAPI,
-  getSingleEmployeeAPI,
-  createEmployeeAPI
-} from "../features/users/usersAPI";
+import {getAllEmployeesAPI,deleteEmployeeAPI,getSingleEmployeeAPI,createEmployeeAPI} from "../features/users/usersAPI";
 import { getAllTasksAPI,deleteTaskAPI,addCommentAPI} from "../features/tasks/tasksAPI";
-import {
-  getAllRequirementsAPI,
-  sendToAdminAPI
-} from "../features/requirements/requirementsAPI";
+import {getAllRequirementsAPI,sendToAdminAPI} from "../features/requirements/requirementsAPI";
 import { getNotifications , markAsRead } from "../features/notification/notificationsAPI.js"
+import { getAllLeavesAPI,updateLeaveStatusAPI } from "../features/users/leaveAPI.js";
+import { getEmployeeSalaryDetailsAPI,markSalaryPaidAPI } from "../features/users/salaryAPI"
+import LogoutButton from "../components/LogoutButton.jsx"
+import EmployeeDetailsModal from "../components/EmployeeDetailsModal";
+import TaskModal from "../components/TaskModal.jsx"
 
 export default function HRDashboard() {
-
-  const { user } = useSelector(state => state.auth)
-  const [search, setSearch] = useState("")
+const dispatch = useDispatch()
+const navigate = useNavigate()
+const { user } = useSelector(state => state.auth)
+const [search, setSearch] = useState("")
 const [statusFilter, setStatusFilter] = useState("")
 const [dateFilter, setDateFilter] = useState("")
 const [employeeSearch, setEmployeeSearch] = useState("")
@@ -36,6 +38,28 @@ const [employeeSearch, setEmployeeSearch] = useState("")
   const [showModal, setShowModal] = useState(false)
   const [showTaskModal, setShowTaskModal] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [leaves, setLeaves] = useState([])
+  const [selectedEmployee, setSelectedEmployee] = useState(null)
+const [employeeSalary, setEmployeeSalary] = useState([])
+const [showEmployeeModal, setShowEmployeeModal] = useState(false)
+const [employeeLeaves, setEmployeeLeaves] = useState([])
+const [showTaskView, setShowTaskView] = useState(false)
+
+const totalLeaves = employeeLeaves.length
+
+const paidLeaves = employeeLeaves.filter(
+  leave =>
+    leave.type === "paid" &&
+    leave.status === "approved"
+).length
+
+const unpaidLeaves = employeeLeaves.filter(
+  leave =>
+    leave.type !== "paid" &&
+    leave.status === "approved"
+).length
+
+
   const filteredTasks = tasks.filter(task => {
 
   const matchSearch =
@@ -75,7 +99,10 @@ const filteredEmployees = employees.filter(emp =>
   email: "",
   password: "",
   department: "",
-  dob: ""
+  dob: "",
+  monthlySalary: "",
+  phone : "",
+  address : "",
 })
 
 const [taskData, setTaskData] = useState({
@@ -99,6 +126,45 @@ const fetchDepartments = async () => {
   }
 }
 
+const fetchLeaves = async () => {
+
+  try {
+
+    const res = await getAllLeavesAPI()
+
+    setLeaves(res.data)
+
+  } catch (err) {
+
+    console.log(err.message)
+
+  }
+}
+const handleLeaveStatus = async (
+  leaveId,
+  status
+) => {
+  try {
+    await updateLeaveStatusAPI(
+      leaveId,
+      status
+    )
+    setLeaves(prev =>
+      prev.map(leave =>
+        leave._id === leaveId
+          ? {
+              ...leave,
+              status
+            }
+          : leave
+      )
+    )
+  } catch (err) {
+    console.log(err.message)
+
+  }
+
+}
 const handleChange = (e) => {
   setFormData({
     ...formData,
@@ -113,6 +179,16 @@ const handleTaskChange = (e) => {
 }
 
 const handleCreateTask = async () => {
+   const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const deadlineDate = new Date(taskData.deadline);
+  deadlineDate.setHours(0, 0, 0, 0);
+
+  if (deadlineDate < today) {
+    alert("Please select today's date or a future date");
+    return;
+  }
   try {
     const formData = new FormData()
 
@@ -161,7 +237,10 @@ const handleCreateEmployee = async () => {
       email: "",
       password: "",
       department: "",
-      dob: ""
+      dob: "",
+      monthlySalary: "",
+      phone : "",
+      address : "",
     })
 
     fetchEmployees() // refresh list
@@ -171,6 +250,45 @@ const handleCreateEmployee = async () => {
   }
 } 
 
+const handleViewEmployee = async (emp) => {
+
+  try {
+    const res = await getEmployeeSalaryDetailsAPI(emp._id);
+    setSelectedEmployee(res.data.employee);
+    setEmployeeSalary(res.data.salaries);
+    setEmployeeLeaves(res.data.leaves || [])
+    setShowEmployeeModal(true);
+  } catch (err) {
+    console.log(err);
+    alert(err.message);
+  }
+
+};
+
+const handleMarkPaid = async (salaryId) => {
+
+  try {
+
+    const res = await markSalaryPaidAPI(salaryId)
+
+    alert("Salary marked as paid ✅")
+
+    // UI update
+    setEmployeeSalary(prev =>
+      prev.map(sal =>
+        sal._id === salaryId
+          ? { ...sal, status: "paid" }
+          : sal
+      )
+    )
+
+  } catch (err) {
+
+    alert(err.message)
+
+  }
+
+}
 const fetchEmployees = async () => {
   try {
     const res = await getAllEmployeesAPI()
@@ -222,11 +340,13 @@ const handleAddComment = async () => {
       
         const taskRes = await getAllTasksAPI()
         const reqRes = await getAllRequirementsAPI()
+        const leaveRes = await getAllLeavesAPI()
         
         setProfile(profileRes.data)
         setTasks(taskRes.data)
         setRequirements(reqRes.data)
-
+        console.log("leave ",leaveRes.data)
+        setLeaves(leaveRes.data)
       } catch (err) {
         console.log(err.message)
       } finally {
@@ -238,15 +358,40 @@ const handleAddComment = async () => {
 
   }, [])
 
-  useEffect(() => {
-  fetchNotifications();
 
+useEffect(() => {
+
+  // 🔥 Initial fetch
+  fetchNotifications()
+  fetchLeaves()
+
+  // 🔥 Polling
   const interval = setInterval(() => {
-    fetchNotifications();
-  }, 5000);
 
-  return () => clearInterval(interval);
-}, []);
+    fetchNotifications()
+    fetchLeaves()
+
+  }, 5000)
+
+  // 🔥 Cleanup
+  return () => clearInterval(interval)
+
+}, [])
+useEffect(() => {
+
+  if (active === "tasks") {
+    getAllTasksAPI()
+  }
+
+  if (active === "reports") {
+    getAllRequirementsAPI()
+  }
+
+  if (active === "leave") {
+    fetchLeaves();
+  }
+
+}, [active]);
 
 useEffect(() => {
   const handleClick = () => setOpen(false);
@@ -289,9 +434,10 @@ useEffect(() => {
 }, [profile]);
 
 
-  if (loading) return <p>Loading...</p>
+  if (loading) return <div className="flex justify-center items-center py-10">
+    <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+  </div>
 
-  // ---------------- Render ----------------
   const renderContent = () => {
 
     if (active === "dashboard") {
@@ -350,8 +496,9 @@ useEffect(() => {
             <tr className="bg-white shadow-sm hover:shadow-md transition rounded-lg">
               <th className="p-2">Name</th>
               <th className="p-2">Role</th>
+              <th className="p-2">Salary</th>
               <th className="p-2">Join Date</th>
-              <th className="p-2">Action</th>
+              <th className="p-">Action</th>
             </tr>
           </thead>
 
@@ -360,9 +507,15 @@ useEffect(() => {
               <tr key={emp._id} className="border-b">
                 <td className="p-2">{emp.name}</td>
                 <td className="p-2">{emp.role}</td>
+                <td className="p-2">{emp.monthlySalary}</td>
                 <td className="p-2">{new Date(emp.createdAt).toLocaleDateString("en-IN")}</td>
                 <td className="p-2">
-                  <button className="bg-red-500 text-white px-2 py-1 rounded" 
+                  <button
+                  className="bg-blue-500 text-white px-3 py-1 rounded m-2"
+                  onClick={() => handleViewEmployee(emp)}>
+                    View
+                  </button>
+                  <button className="bg-red-500 text-white px-2 py-1 rounded m-1" 
                   onClick={()=>handleDelete(emp._id)}>
                     Delete
                   </button>
@@ -379,6 +532,17 @@ useEffect(() => {
 )}
       </div>
 
+      <EmployeeDetailsModal
+  showEmployeeModal={showEmployeeModal}
+  setShowEmployeeModal={setShowEmployeeModal}
+  selectedEmployee={selectedEmployee}
+  employeeSalary={employeeSalary}
+  employeeLeaves={employeeLeaves}
+  totalLeaves={totalLeaves}
+  paidLeaves={paidLeaves}
+  unpaidLeaves={unpaidLeaves}
+  handleMarkPaid={handleMarkPaid}
+/>
       
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center">
@@ -429,8 +593,34 @@ useEffect(() => {
             <input
               name="dob"
               type="date"
+              placeholder="DOB"
               className="w-full border p-2 mb-3"
+              max={new Date().toISOString().split("T")[0]}
               value={formData.dob}
+              onChange={handleChange}
+            />
+            <input
+              name="monthlySalary"
+              type="number"
+              placeholder="monthlySalary"
+              className="w-full border p-2 mb-3"
+              value={formData.monthlySalary}
+              onChange={handleChange}
+            />
+            <input
+              name="address"
+              type="text"
+              placeholder="address"
+              className="w-full border p-2 mb-3"
+              value={formData.address}
+              onChange={handleChange}
+            />
+            <input
+              name="phone"
+              type="number"
+              placeholder="phone"
+              className="w-full border p-2 mb-3"
+              value={formData.phone}
               onChange={handleChange}
             />
 
@@ -455,6 +645,7 @@ useEffect(() => {
           </div>
         </div>
       )}
+      
     </>
   )
 }
@@ -554,6 +745,7 @@ if (active === "tasks") {
                 </td>
 
                 <td className="p-2 space-x-2">
+                  
 
                   <button
                     onClick={() => handleDeleteTask(task._id)}
@@ -563,7 +755,10 @@ if (active === "tasks") {
                   </button>
 
                   <button
-                    onClick={() => setSelectedTask(task)}
+                    onClick={() => {
+                    setSelectedTask(task)
+                    setShowTaskView(true)
+                  }}
                     className="bg-blue-500 text-white px-3 py-1 rounded"
                   >
                     View
@@ -576,212 +771,164 @@ if (active === "tasks") {
           </tbody>
         </table>
             {filteredTasks.length === 0 && (
-  <p className="text-center text-gray-500 mt-4">
-    No tasks found 😕
-  </p>
-)}
-        {/* 🔥 Selected Task Panel */}
-        {selectedTask && (
-          <div className="mt-6 bg-gray-50 p-5 rounded-2xl border shadow">
+              <p className="text-center text-gray-500 mt-4">
+                No tasks found 😕
+              </p>
+            )}
+  {selectedTask && (
 
-            <h3 className="font-bold mb-2">
-              Task: {selectedTask.title}
-            </h3>
+      <div className="mt-6 bg-gray-50 p-5 rounded-2xl border shadow">
 
-            <p className="mb-2">Progress: {progress}%</p>
+        <h3 className="font-bold text-xl mb-4">
+          {selectedTask.title}
+        </h3>
 
-            {/* 📁 Attachments */}
-            {selectedTask.attachments?.length > 0 && (
-              <div className="mb-4">
-                <h4 className="font-semibold mb-2">Attachments 📎</h4>
+        <p className="mb-2">
+          Assigned To:
+          {" "}
+          {selectedTask.assignedTo?.name}
+        </p>
 
-                {selectedTask.attachments.map((file, i) => (
-                  <a
-                    key={i}
-                    href={file.fileUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block text-blue-600 underline"
-                  >
-                    {file.fileName}
-                  </a>
-                ))}
-              </div>
+        <p className="mb-2">
+          Status:
+          {" "}
+          <span className="font-semibold">
+            {selectedTask.status}
+          </span>
+        </p>
+
+        <p className="mb-2">
+          Progress:
+          {" "}
+          {selectedTask.progress || 0}%
+        </p>
+
+        {/* Progress Bar */}
+        <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
+
+          <div
+            className="bg-green-500 h-3 rounded-full"
+            style={{
+              width: `${selectedTask.progress || 0}%`
+            }}
+          />
+
+        </div>
+
+        {/* Attachments */}
+
+    {selectedTask.attachments?.length > 0 && (
+
+          <div className="mb-4">
+
+            <h4 className="font-semibold mb-2">
+              Attachments 📎
+            </h4>
+
+            {selectedTask.attachments.map((file, i) => (
+
+              <a
+                key={i}
+                href={file.fileUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="block text-blue-600 underline"
+              >
+                {file.fileName}
+              </a>
+
+            ))}
+
+          </div>
+
+        )}
+
+        {/* Comments */}
+
+        <div className="mt-6">
+
+          <h3 className="font-bold mb-2">
+            Comments 💬
+          </h3>
+
+          <div className="max-h-40 overflow-y-auto space-y-2 mb-2">
+
+            {selectedTask.comments?.length === 0 && (
+              <p className="text-gray-500 text-sm">
+                No comments yet
+              </p>
             )}
 
-            {/* 🔥 Progress Slider */}
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={progress}
-              onChange={(e) => setProgress(Number(e.target.value))}
-              className="w-full"
-            />
+            {selectedTask.comments?.map((c, i) => (
 
-            {/* 🔥 Message */}
-            <textarea
-              placeholder="Write update..."
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              className="w-full border p-2 mt-3 rounded"
-            />
-
-            {/* 🔥 Buttons */}
-            <div className="mt-3 space-x-2">
-
-              <button
-                onClick={handleTaskUpdate}
-                className="bg-green-600 hover:bg-green-700 text-white px-4 py-1 rounded"
+              <div
+                key={i}
+                className="bg-white p-3 rounded shadow-sm"
               >
-                Submit
-              </button>
 
-              <button
-                onClick={() => setSelectedTask(null)}
-                className="bg-gray-400 text-white px-3 py-1 rounded"
-              >
-                Cancel
-              </button>
+                <p className="font-semibold text-indigo-600">
+                  {c.user?.name}
+                </p>
 
-            </div>
+                <p>{c.message}</p>
 
-            {/* 💬 Comments */}
-            <div className="mt-6">
-              <h3 className="font-bold mb-2">Comments 💬</h3>
-
-              <div className="max-h-40 overflow-y-auto space-y-2 mb-2">
-
-                {selectedTask.comments?.length === 0 && (
-                  <p className="text-gray-500 text-sm">No comments yet</p>
-                )}
-
-                {selectedTask.comments?.map((c, i) => (
-                  <div key={i} className="bg-white p-3 rounded shadow-sm">
-
-                    <p className="text-sm font-semibold text-indigo-600">
-                      {c.user?.name || "User"}
-                    </p>
-
-                    <p className="text-sm">{c.message}</p>
-
-                    <p className="text-xs text-gray-500">
-                      {new Date(c.createdAt).toLocaleString("en-IN")}
-                    </p>
-
-                  </div>
-                ))}
+                <p className="text-xs text-gray-500">
+                  {new Date(c.createdAt)
+                    .toLocaleString("en-IN")}
+                </p>
 
               </div>
 
-              {/* ✍️ Add Comment */}
-              <div className="flex gap-2">
-
-                <input
-                  type="text"
-                  value={commentText}
-                  onChange={(e) => setCommentText(e.target.value)}
-                  placeholder="Write a comment..."
-                  className="flex-1 border p-2 rounded"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleAddComment()
-                  }}
-                />
-
-                <button
-                  onClick={handleAddComment}
-                  className="bg-blue-600 text-white px-3 rounded"
-                >
-                  Send
-                </button>
-
-              </div>
-
-            </div>
+            ))}
 
           </div>
-        )}
+
+          {/* Add Comment */}
+
+          <div className="flex gap-2">
+
+            <input
+              type="text"
+              value={commentText}
+              onChange={(e) =>
+                setCommentText(e.target.value)
+              }
+              placeholder="Write a comment..."
+              className="flex-1 border p-2 rounded"
+            />
+
+            <button
+              onClick={handleAddComment}
+              className="bg-blue-600 text-white px-3 rounded"
+            >
+              Send
+            </button>
+
+          </div>
+
+        </div>
+
+        <button
+          onClick={() => setSelectedTask(null)}
+          className="mt-4 bg-gray-500 text-white px-4 py-2 rounded"
+        >
+          Close
+        </button>
+
       </div>
 
-      {/* 🔥 Modal (UNCHANGED LOGIC) */}
-      {showTaskModal && (
-        <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50">
+)}
 
-          <div className="bg-white p-6 rounded-2xl w-96 shadow-xl">
-
-            <h2 className="text-xl font-bold mb-4">Create Task</h2>
-
-            <input
-              name="title"
-              placeholder="Title"
-              className="w-full border p-2 mb-2"
-              value={taskData.title}
-              onChange={handleTaskChange}
-            />
-
-            <textarea
-              name="description"
-              placeholder="Description"
-              className="w-full border p-2 mb-2"
-              value={taskData.description}
-              onChange={handleTaskChange}
-            />
-
-            <select
-              name="assignedTo"
-              className="w-full border p-2 mb-2"
-              value={taskData.assignedTo}
-              onChange={handleTaskChange}
-            >
-              <option value="">Select Employee</option>
-              {employees.map(emp => (
-                <option key={emp._id} value={emp._id}>
-                  {emp.name}
-                </option>
-              ))}
-            </select>
-
-            <input
-              type="date"
-              name="deadline"
-              className="w-full border p-2 mb-2"
-              value={taskData.deadline}
-              onChange={handleTaskChange}
-            />
-
-            <input
-              type="file"
-              accept=".pdf"
-              onChange={(e) =>
-                setTaskData({
-                  ...taskData,
-                  file: e.target.files[0]
-                })
-              }
-              className="w-full border p-2 mb-3"
-            />
-
-            <div className="flex justify-end gap-3">
-
-              <button
-                onClick={() => setShowTaskModal(false)}
-                className="bg-gray-300 px-3 py-1 rounded"
-              >
-                Cancel
-              </button>
-
-              <button
-                onClick={handleCreateTask}
-                className="bg-green-600 text-white px-3 py-1 rounded"
-              >
-                Create
-              </button>
-
-            </div>
-
-          </div>
-        </div>
-      )}
+      </div>
+      <TaskModal
+  showTaskModal={showTaskModal}
+  setShowTaskModal={setShowTaskModal}
+  taskData={taskData}
+  setTaskData={setTaskData}
+  employees={employees}
+  handleCreateTask={handleCreateTask}
+/>
+      
     </>
   )
 }
@@ -887,7 +1034,98 @@ if (active === "tasks") {
         )}
 
       </div>
+      <h2 className="text-xl font-bold mt-8 mb-4">
+        Employee Leave Requests
+      </h2>
 
+      <div className="space-y-4">
+
+        {leaves.length === 0 && (
+          <p className="text-gray-500">
+            No leave requests
+          </p>
+        )}
+
+        {leaves.map((leave) => (
+
+          <div
+            key={leave._id}
+            className="border rounded-xl p-4 bg-white shadow-sm"
+          >
+
+            <div className="flex justify-between items-center">
+
+              <div>
+
+                <p className="font-semibold">
+                  {leave.employee?.name}
+                </p>
+
+                <p className="text-sm text-gray-500 capitalize">
+                  {leave.type} Leave
+                </p>
+
+              </div>
+
+              <span
+                className={`px-3 py-1 rounded-full text-sm ${
+                  leave.status === "approved"
+                    ? "bg-green-100 text-green-700"
+                    : leave.status === "rejected"
+                    ? "bg-red-100 text-red-700"
+                    : "bg-yellow-100 text-yellow-700"
+                }`}
+              >
+                {leave.status}
+              </span>
+
+            </div>
+
+            <p className="mt-3 text-sm text-gray-700">
+              {leave.reason}
+            </p>
+
+            <p className="text-xs text-gray-500 mt-2">
+  {new Date(leave.fromDate).toLocaleDateString("en-IN")}
+  {" "}→{" "}
+  {new Date(leave.toDate).toLocaleDateString("en-IN")}
+</p>
+
+{leave.status === "pending" && (
+  <div className="mt-3 flex gap-2">
+
+    <button
+      onClick={() =>
+        handleLeaveStatus(
+          leave._id,
+          "approved"
+        )
+      }
+      className="bg-green-600 text-white px-3 py-1 rounded"
+    >
+      Approve
+    </button>
+
+    <button
+      onClick={() =>
+        handleLeaveStatus(
+          leave._id,
+          "rejected"
+        )
+      }
+      className="bg-red-600 text-white px-3 py-1 rounded"
+    >
+      Reject
+    </button>
+
+  </div>
+)}
+
+          </div>
+
+        ))}
+
+      </div>
     </div>
   );
 }
@@ -914,7 +1152,7 @@ if (active === "tasks") {
    <div className="flex min-h-screen bg-linear-to-br from-gray-100 to-gray-200">
 
       <div className="w-64 bg-linear-to-b from-gray-900 via-gray-800 to-gray-900 
-text-white p-5 shadow-2xl">
+text-white p-5 shadow-2xl flex flex-col">
 
         <h2 className="text-2xl font-bold mb-8 tracking-wide">
   🚀 HR Panel
@@ -926,7 +1164,12 @@ text-white p-5 shadow-2xl">
         <SidebarItem label="Requirement" id="reports" setActive={setActive} />
         <SidebarItem label="Profile" id="profile" setActive={setActive} />
 
+{/* Bottom */}
+  <div className="mt-auto p-4">
+    <LogoutButton />
+  </div>
       </div>
+       
 
       {/* Content */}
       <div className="flex-1 p-8">
@@ -980,16 +1223,27 @@ text-white p-5 shadow-2xl">
                 );
 
                 // 🔥 HR redirect logic
-                if (n.type === "requirement_raised") {
-                  setActive("reports");
-                }
+            if (n.type === "task_assigned" ||
+              n.type ===  "task_update_added"||
+              n.type === "task_comment"
+            ) {
+              setActive("tasks");
+            }
 
-                if (n.type === "requirement_rejected") {
-                  setActive("reports");
-                }
-                if (n.type === "requirement_forwarded") {
-                    setActive("reports");
-                }
+            if (
+              n.type === "requirement_raised" ||
+              n.type === "requirement_rejected" ||
+              n.type === "requirement_forwarded"
+            ) {
+              setActive("reports");
+            }
+
+            if (n.type === "leave_applied"||
+              n.type === "leave_approved"||
+              n.type === "leave_rejected"
+            ) {
+              setActive("reports");
+            }
 
               }}
               className={`p-3 border-b cursor-pointer ${
@@ -1013,62 +1267,6 @@ text-white p-5 shadow-2xl">
   {renderContent()}
 
       </div>
-
-    {selectedTask && (
-      <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50">
-
-        <div className="bg-white w-125 p-5 rounded-xl shadow-xl">
-
-          <h2 className="text-xl font-bold mb-3">
-            {selectedTask.title}
-          </h2>
-
-          {/* 🔥 COMMENTS LIST */}
-          <div className="h-60 overflow-y-auto border p-2 mb-3">
-
-            {selectedTask.comments?.length === 0 && (
-              <p className="text-gray-500 text-sm">No comments yet</p>
-            )}
-
-            {selectedTask.comments?.map((c, i) => (
-              <div key={i} className="mb-2">
-                <p className="text-sm font-semibold">
-                  {c.user?.name || "User"}
-                </p>
-                <p className="text-sm">{c.message}</p>
-              </div>
-            ))}
-
-          </div>
-
-          {/* 🔥 ADD COMMENT */}
-          <div className="flex gap-2">
-            <input
-              value={commentText}
-              onChange={(e) => setCommentText(e.target.value)}
-              placeholder="Write a comment..."
-              className="flex-1 border p-2 rounded"
-            />
-
-            <button
-              onClick={handleAddComment}
-              className="bg-blue-600 text-white px-3 rounded"
-            >
-              Send
-            </button>
-          </div>
-
-          <button
-            onClick={() => setSelectedTask(null)}
-            className="mt-3 text-red-500"
-          >
-            Close
-          </button>
-
-        </div>
-      </div>
-    )}
-
     </div>
   )
 }
