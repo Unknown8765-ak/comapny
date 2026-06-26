@@ -1,13 +1,23 @@
 import { useEffect, useState } from "react"
+import { useDispatch } from "react-redux"
+import { useNavigate } from "react-router-dom"
+import { logout  } from "../features/auth/authSlice"
 
 import { getDepartmentsAPI ,deleteDepartmentAPI ,createDepartmentAPI} from "../features/departments/departmentAPI.js"
 import { getAllEmployeesAPI ,getAllHRAPI ,createEmployeeAPI,createHRAPI,deleteEmployeeAPI} from "../features/users/usersAPI.js"
 import { getAllRequirementsAPI ,updateRequirementStatusAPI} from "../features/requirements/requirementsAPI.js"
 import { getAllTasksAPI ,deleteTaskAPI} from "../features/tasks/tasksAPI.js"
 import { getNotifications, markAsRead } from "../features/notification/notificationsAPI.js"
+import { processPaymentAPI,verifyPaymentAPI,getRazorpayKeyAPI } from "../features/payment/paymentAPI.js"
+import { getMyCompany } from "../features/company/companyAPI.js";
+import { getEmployeeSalaryDetailsAPI,markSalaryPaidAPI } from "../features/users/salaryAPI"
+import EmployeeDetailsModal from "../components/EmployeeDetailsModal";
+import LogoutButton from "../components/LogoutButton.jsx"
 
 
 export default function AdminPanel() {
+  const dispatch = useDispatch()
+const navigate = useNavigate()
 
   const [active, setActive] = useState("dashboard")
   const [open, setOpen] = useState(false);
@@ -21,14 +31,29 @@ export default function AdminPanel() {
   const [departments, setDepartments] = useState([])
   const [employees, setEmployees] = useState([])
   const [requirements, setRequirements] = useState([])
+  const [selectedRequirement, setSelectedRequirement] = useState(null)
+  const [showRequirementModal, setShowRequirementModal] = useState(false)
   const [tasks, setTasks] = useState([])
   const [hrs, setHrs] = useState([])
   const [showModal, setShowModal] = useState(false)
   const [showDeptModal, setShowDeptModal] = useState(false)
   const [showHRModal, setShowHRModal] = useState(false)
+  const [showEmployeeModal, setShowEmployeeModal] = useState(false);
+const [selectedEmployee, setSelectedEmployee] = useState(null);
+const [employeeSalary, setEmployeeSalary] = useState([]);
+const [employeeLeaves, setEmployeeLeaves] = useState([]);
   const [loading, setLoading] = useState(false)
-  const [plan, setPlan] = useState("free") // default
+  const [plan, setPlan] = useState("free")
 const [showPlanModal, setShowPlanModal] = useState(false)
+const [company, setCompany] = useState(null);
+
+const totalLeaves = employeeLeaves.length;
+
+const paidLeaves = employeeLeaves.filter(
+  leave => leave.isPaid
+).length;
+
+const unpaidLeaves = totalLeaves - paidLeaves;
 
   const filteredEmployees = employees.filter(emp => {
   if (!empSearch.trim()) return true
@@ -92,24 +117,62 @@ const handleDeptChange = (e) => {
   })
 }
 
-const handleUpgrade = (type) => {
 
-  if (type === "monthly") {
-    alert("Redirect to Razorpay Monthly 💳")
+const handleUpgrade = async (type) => {
+
+  try {
+    // 🔥 CREATE ORDER
+    const data = await processPaymentAPI(type);
+    // 🔥 GET RAZORPAY KEY
+    const keyData = await getRazorpayKeyAPI();
+    console.log(keyData);
+    const options = {
+      key: keyData.key,
+      amount: data.order.amount,
+      currency: "INR",
+      name: "Company Management SaaS",
+      description: "Subscription Payment",
+      order_id: data.order.id,
+      handler: async function (response) {
+        await verifyPaymentAPI({
+          ...response,
+          plan: type
+
+        });
+        setPlan("pro")
+         setCompany(
+    verifyData.company
+  );
+        alert("Payment Success ✅");
+        await fetchData();
+
+      },
+
+      prefill: {
+        name: "Admin",
+        email: "admin@gmail.com",
+      },
+
+      theme: {
+        color: "#2563eb"
+      }
+    };
+
+    const razor = new window.Razorpay(options);
+    razor.open();
+  } catch (err) {
+    console.log(err);
+    alert(err.message);
+
   }
 
-  if (type === "yearly") {
-    alert("Redirect to Razorpay Yearly 💳")
-  }
+};
 
-  // later:
-  // call payment API
-}
 const handleCreateDepartment = async () => {
   try {
     await createDepartmentAPI(deptForm)
 
-    alert("Department Created ✅")
+    alert("Department Created")
 
     setShowDeptModal(false)
 
@@ -137,7 +200,10 @@ const handleCreateEmployee = async () => {
       email: "",
       password: "",
       department: "",
-      dob: ""
+      dob: "",
+      monthlySalary: "",
+      phone : "",
+      address : "",
     })
 
     await fetchData()
@@ -160,7 +226,10 @@ const handleCreateHR = async () => {
       email: "",
       password: "",
       department: "",
-      dob: ""
+      dob: "",
+      monthlySalary: "",
+      phone : "",
+      address : "",
     })
 
     await fetchData()
@@ -169,6 +238,48 @@ const handleCreateHR = async () => {
     alert(err.message)
     }
   }
+   
+  const handleViewEmployee = async (emp) => {
+  try {
+    const res = await getEmployeeSalaryDetailsAPI(emp._id);
+
+    setSelectedEmployee(res.data.employee);
+    setEmployeeSalary(res.data.salaries);
+    setEmployeeLeaves(res.data.leaves || []);
+
+    setShowEmployeeModal(true);
+
+  } catch (err) {
+    console.log(err);
+    alert(err.message);
+  }
+};
+
+const handleMarkPaid = async (salaryId) => {
+
+  try {
+
+    const res = await markSalaryPaidAPI(salaryId)
+
+    alert("Salary marked as paid ✅")
+
+    // UI update
+    setEmployeeSalary(prev =>
+      prev.map(sal =>
+        sal._id === salaryId
+          ? { ...sal, status: "paid" }
+          : sal
+      )
+    )
+
+  } catch (err) {
+
+    alert(err.message)
+
+  }
+
+}
+
 const handleStatusUpdate = async (id, status) => {
   try {
     console.log("clicked")
@@ -218,6 +329,20 @@ const handleStatusUpdate = async (id, status) => {
     }
   }
 
+const fetchCompany = async () => {
+
+    try {
+
+      const data =
+        await getMyCompany();
+        console.log("my comapny ",data.company)
+      setCompany(data.company);
+    } catch (err) {
+      console.log(err);
+    }
+
+  };
+
   const fetchNotifications = async () => {
   try {
     const res = await getNotifications();
@@ -249,7 +374,8 @@ const handleStatusUpdate = async (id, status) => {
   }
 
   useEffect(() => {
-    fetchData()
+    fetchData();
+    fetchCompany();
   }, [])
 
   useEffect(() => {
@@ -474,6 +600,11 @@ useEffect(() => {
 
                 <td className="p-4 text-center">
                   <button
+                  className="bg-blue-500 text-white px-3 py-1 rounded m-2"
+                  onClick={() => handleViewEmployee(hr)}>
+                    View
+                  </button>
+                  <button
                     onClick={() => handleDeleteHR(hr._id)}
                     className="bg-red-500 text-white px-3 py-1 rounded-lg hover:bg-red-600 transition"
                   >
@@ -494,7 +625,17 @@ useEffect(() => {
         )}
 
       </div>
-
+        <EmployeeDetailsModal
+  showEmployeeModal={showEmployeeModal}
+  setShowEmployeeModal={setShowEmployeeModal}
+  selectedEmployee={selectedEmployee}
+  employeeSalary={employeeSalary}
+  employeeLeaves={employeeLeaves}
+  totalLeaves={totalLeaves}
+  paidLeaves={paidLeaves}
+  unpaidLeaves={unpaidLeaves}
+  handleMarkPaid={handleMarkPaid}
+/>
      
       {showHRModal && (
         <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50">
@@ -550,6 +691,31 @@ useEffect(() => {
               type="date"
               className="w-full border rounded-lg p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={formData.dob}
+              max={new Date().toISOString().split("T")[0]}
+              onChange={handleChange}
+            />
+            <input
+              name="monthlySalary"
+              type="number"
+              placeholder="monthlySalary"
+              className="w-full border p-2 mb-3"
+              value={formData.monthlySalary}
+              onChange={handleChange}
+            />
+            <input
+              name="address"
+              type="text"
+              placeholder="address"
+              className="w-full border p-2 mb-3"
+              value={formData.address}
+              onChange={handleChange}
+            />
+            <input
+              name="phone"
+              type="number"
+              placeholder="phone"
+              className="w-full border p-2 mb-3"
+              value={formData.phone}
               onChange={handleChange}
             />
 
@@ -639,6 +805,11 @@ onChange={(e) => setEmpSearch(e.target.value)}
 
           <td className="p-2">
             <button
+                  className="bg-blue-500 text-white px-3 py-1 rounded m-2"
+                  onClick={() => handleViewEmployee(emp)}>
+                    View
+                  </button>
+            <button
               onClick={() => handleDeleteEmp(emp._id)}
               className="bg-red-500 text-white px-2 py-1 rounded"
             >
@@ -657,6 +828,16 @@ onChange={(e) => setEmpSearch(e.target.value)}
   </p>
 )}
 </div>
+<EmployeeDetailsModal
+  showEmployeeModal={showEmployeeModal}
+  setShowEmployeeModal={setShowEmployeeModal}
+  selectedEmployee={selectedEmployee}
+  employeeSalary={employeeSalary}
+  employeeLeaves={employeeLeaves}
+  totalLeaves={totalLeaves}
+  paidLeaves={paidLeaves}
+  unpaidLeaves={unpaidLeaves}
+/>
       
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center">
@@ -706,6 +887,31 @@ onChange={(e) => setEmpSearch(e.target.value)}
               type="date"
               className="w-full border p-2 mb-3"
               value={formData.dob}
+              max={new Date().toISOString().split("T")[0]}
+              onChange={handleChange}
+            />
+            <input
+              name="monthlySalary"
+              type="number"
+              placeholder="monthlySalary"
+              className="w-full border p-2 mb-3"
+              value={formData.monthlySalary}
+              onChange={handleChange}
+            />
+            <input
+              name="address"
+              type="text"
+              placeholder="address"
+              className="w-full border p-2 mb-3"
+              value={formData.address}
+              onChange={handleChange}
+            />
+            <input
+              name="phone"
+              type="number"
+              placeholder="phone"
+              className="w-full border p-2 mb-3"
+              value={formData.phone}
               onChange={handleChange}
             />
 
@@ -730,125 +936,6 @@ onChange={(e) => setEmpSearch(e.target.value)}
           </div>
         </div>
       )}
-    </>
-  )
-}
-
-if (active === "requirements") {
-  return (
-    <>
-      {/* 🔥 Header */}
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Requirement Board</h1>
-      </div>
-    <div className="flex gap-3 mb-4">
-  <input
-    type="text"
-    placeholder="Search requirement..."
-    value={reqSearch}
-onChange={(e) => setReqSearch(e.target.value)}
-    className="border p-2 rounded-lg"
-  />
-
-  <select
-    value={reqStatus}
-onChange={(e) => setReqStatus(e.target.value)}
-    className="border p-2 rounded-lg"
-  >
-    <option value="">All</option>
-    <option value="pending">Pending</option>
-    <option value="approved">Approved</option>
-    <option value="rejected">Rejected</option>
-  </select>
-
-  <button
-    onClick={() => {
-      setReqSearch("")
-      setReqStatus("")
-    }}
-    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-gray-500 transition"
-  >
-    Reset
-  </button>
-</div>
-      {/* 🔥 Table */}
-      <div className="bg-white rounded-2xl shadow p-6">
-
-        <table className="w-full text-left">
-          <thead>
-            <tr className="border-b text-gray-600">
-              <th className="p-2">Title</th>
-              <th className="p-2">Raised By</th>
-              <th className="p-2">Status</th>
-              <th className="p-2 text-center">Action</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {filteredRequirements.map((req) => (
-              <tr
-                key={req._id}
-                className="border-b hover:bg-gray-50 transition"
-              >
-
-                <td className="p-2 font-medium">{req.title}</td>
-
-                <td className="p-2">
-                  {req.raisedBy?.name || "—"}
-                </td>
-
-                <td className={`p-2 font-semibold ${
-                  req.status === "approved"
-                    ? "text-green-600"
-                    : req.status === "rejected"
-                    ? "text-red-500"
-                    : "text-yellow-500"
-                }`}>
-                  {req.status}
-                </td>
-
-                <td className="p-2">
-                  <div className="flex justify-center gap-2">
-
-                    {/* ✅ APPROVE */}
-                    <button
-                      onClick={() => handleStatusUpdate(req._id, "approved")}
-                      className={`px-3 py-1 rounded transition ${
-                        req.status === "approved"
-                          ? "bg-green-600 text-white"
-                          : "bg-gray-200 hover:bg-green-100"
-                      }`}
-                    >
-                      Approve
-                    </button>
-
-                    {/* ❌ REJECT */}
-                    <button
-                      onClick={() => handleStatusUpdate(req._id, "rejected")}
-                      className={`px-3 py-1 rounded transition ${
-                        req.status === "rejected"
-                          ? "bg-red-600 text-white"
-                          : "bg-gray-200 hover:bg-red-100"
-                      }`}
-                    >
-                      Reject
-                    </button>
-
-                  </div>
-                </td>
-
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {filteredRequirements.length === 0 && (
-          <div className="text-center text-gray-500 py-6">
-            No requirements available
-          </div>
-        )}
-
-      </div>
     </>
   )
 }
@@ -945,6 +1032,7 @@ onChange={(e) => setTaskDate(e.target.value)}
 
                 {/* 🔥 ONLY DELETE BUTTON */}
                 <td className="p-3 text-center">
+                  
                   <button
                     onClick={() => handleDeleteTask(task._id)}
                     className="bg-red-500 text-white px-4 py-1 rounded-lg hover:bg-red-600 transition"
@@ -972,18 +1060,212 @@ onChange={(e) => setTaskDate(e.target.value)}
   );
 }
 
+if (active === "requirements") {
+  return (
+    <>
+      {/* 🔥 Header */}
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Requirement Board</h1>
+      </div>
+    <div className="flex gap-3 mb-4">
+  <input
+    type="text"
+    placeholder="Search requirement..."
+    value={reqSearch}
+onChange={(e) => setReqSearch(e.target.value)}
+    className="border p-2 rounded-lg"
+  />
+
+  <select
+    value={reqStatus}
+onChange={(e) => setReqStatus(e.target.value)}
+    className="border p-2 rounded-lg"
+  >
+    <option value="">All</option>
+    <option value="pending">Pending</option>
+    <option value="approved">Approved</option>
+    <option value="rejected">Rejected</option>
+  </select>
+
+  <button
+    onClick={() => {
+      setReqSearch("")
+      setReqStatus("")
+    }}
+    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-gray-500 transition"
+  >
+    Reset
+  </button>
+  
+</div>
+      {/* 🔥 Table */}
+      <div className="bg-white rounded-2xl shadow p-6">
+
+        <table className="w-full text-left">
+          <thead>
+            <tr className="border-b text-gray-600">
+              <th className="p-2">Title</th>
+              <th className="p-2">Raised By</th>
+              <th className="p-2">Status</th>
+              <th className="p-2 text-center">Action</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {filteredRequirements.map((req) => (
+              <tr
+                key={req._id}
+                className="border-b hover:bg-gray-50 transition"
+              >
+
+                <td className="p-2 font-medium">{req.title}</td>
+
+                <td className="p-2">
+                  {req.raisedBy?.name || "—"}
+                </td>
+
+                <td className={`p-2 font-semibold ${
+                  req.status === "approved"
+                    ? "text-green-600"
+                    : req.status === "rejected"
+                    ? "text-red-500"
+                    : "text-yellow-500"
+                }`}>
+                  {req.status}
+                </td>
+
+                <td className="p-2">
+                  <div className="flex justify-center gap-2">
+
+                    {/* ✅ APPROVE */}
+                    <button
+                      onClick={() => handleStatusUpdate(req._id, "approved")}
+                      className={`px-3 py-1 rounded transition ${
+                        req.status === "approved"
+                          ? "bg-green-600 text-white"
+                          : "bg-gray-200 hover:bg-green-100"
+                      }`}
+                    >
+                      Approve
+                    </button>
+
+                    {/* ❌ REJECT */}
+                    <button
+                      onClick={() => handleStatusUpdate(req._id, "rejected")}
+                      className={`px-3 py-1 rounded transition ${
+                        req.status === "rejected"
+                          ? "bg-red-600 text-white"
+                          : "bg-gray-200 hover:bg-red-100"
+                      }`}
+                    >
+                      Reject
+                    </button>
+                    <button
+  onClick={() => {
+    setSelectedRequirement(req)
+    setShowRequirementModal(true)
+  }}
+  className="bg-blue-500 text-white px-3 py-1 rounded"
+>
+  View
+</button>
+
+                  </div>
+                </td>
+
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {filteredRequirements.length === 0 && (
+          <div className="text-center text-gray-500 py-6">
+            No requirements available
+          </div>
+        )}
+
+        {showRequirementModal && selectedRequirement && (
+  <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50">
+
+    <div className="bg-white w-150 p-6 rounded-xl shadow-xl">
+
+      <h2 className="text-xl font-bold mb-4">
+        Requirement Details
+      </h2>
+
+      <div className="space-y-3">
+
+        <p>
+          <strong>Title:</strong>{" "}
+          {selectedRequirement.title}
+        </p>
+
+        <p>
+          <strong>Raised By:</strong>{" "}
+          {selectedRequirement.raisedBy?.name}
+        </p>
+
+        <p>
+          <strong>Status:</strong>{" "}
+          {selectedRequirement.status}
+        </p>
+
+        <p>
+          <strong>Description:</strong>{" "}
+          {selectedRequirement.description}
+        </p>
+
+        <p>
+          <strong>Created At:</strong>{" "}
+          {new Date(
+            selectedRequirement.createdAt
+          ).toLocaleString("en-IN")}
+        </p>
+
+      </div>
+
+      <button
+        onClick={() => {
+          setShowRequirementModal(false)
+          setSelectedRequirement(null)
+        }}
+        className="mt-5 bg-red-500 text-white px-4 py-2 rounded"
+      >
+        Close
+      </button>
+
+    </div>
+
+  </div>
+)}
+
+      </div>
+    </>
+  )
+}
+
     if (active === "reports") {
       return (
         <>
-          <h1 className="text-2xl font-bold mb-6">Reports</h1>
+          <h1 className="text-2xl font-bold mb-6">Company Details</h1>
 
           <div className="bg-white p-6 rounded-2xl shadow space-y-2">
+
+            <p>Company Name: {company?.name}</p>
+            <p>Company Email: {company?.email}</p>
+            <p>Current Plan: {company?.plan}</p>
+            <p>Subscription Status: {company?.subscriptionStatus}</p>
+            <p>Expires On: {new Date(company.subscriptionEndDate).toLocaleDateString("en-IN")}</p>
+
             <p>Total Departments: {departments.length}</p>
             <p>Total HR: {hrs.length}</p>
             <p>Total Employees: {employees.length}</p>
             <p>Total Requirements: {requirements.length}</p>
             <p>Total Tasks: {tasks.length}</p>
+           
           </div>
+
+        
         </>
       )
     }
@@ -993,7 +1275,7 @@ onChange={(e) => setTaskDate(e.target.value)}
     <div className="min-h-screen flex bg-gray-100">
 
       {/* Sidebar */}
-      <div className="w-64 bg-linear-to-b from-gray-900 to-gray-800 text-white p-6 shadow-xl">
+      <div className="w-64 bg-linear-to-b from-gray-900 to-gray-800 text-white p-5 shadow-xl flex flex-col min-h-screen">
         <h2 className="text-xl font-bold mb-6">Admin</h2>
 
         <nav className="space-y-2">
@@ -1001,19 +1283,19 @@ onChange={(e) => setTaskDate(e.target.value)}
           <SidebarItem label="Departments" id="departments" setActive={setActive} />
           <SidebarItem label="HR Management" id="hr" setActive={setActive} />
           <SidebarItem label="Employees" id="employees" setActive={setActive} />
-          <SidebarItem label="Requirement Board" id="requirements" setActive={setActive} />
           <SidebarItem label="Tasks Overview" id="tasks" setActive={setActive} />
-          <SidebarItem label="Reports" id="reports" setActive={setActive} />
+          <SidebarItem label="Requirement Board" id="requirements" setActive={setActive} />
+          <SidebarItem label="Company Details" id="reports" setActive={setActive} />
         </nav>
+        <div className="mt-auto p-4">
+    <LogoutButton />
+  </div>
       </div>
 
       {/* Content */}
 <div className="flex-1 p-8 bg-gray-50 min-h-screen">
-
-  {/* TOP BAR (ONLY THIS) */}
   <div className="flex justify-end items-center gap-4 mb-4">
 
-    {/* Upgrade Button */}
     {showPlanModal && (
   <div className="fixed inset-0 bg-black/70 flex justify-center items-center z-50">
 
@@ -1024,8 +1306,6 @@ onChange={(e) => setTaskDate(e.target.value)}
       </h2>
 
       <div className="grid grid-cols-3 gap-6">
-
-        {/* FREE */}
         <div className="bg-gray-800 p-6 rounded-2xl border border-gray-700">
           <h3 className="text-xl font-bold mb-2">Free</h3>
           <p className="text-3xl font-bold mb-4">₹0</p>
@@ -1043,8 +1323,6 @@ onChange={(e) => setTaskDate(e.target.value)}
             Current Plan
           </button>
         </div>
-
-        {/* MONTHLY */}
         <div className="bg-gray-800 p-6 rounded-2xl border border-gray-700">
           <h3 className="text-xl font-bold mb-2">Monthly</h3>
           <p className="text-3xl font-bold mb-4">₹399</p>
@@ -1064,7 +1342,6 @@ onChange={(e) => setTaskDate(e.target.value)}
           </button>
         </div>
 
-        {/* YEARLY (HIGHLIGHTED) */}
         <div className="bg-linear-to-br from-purple-700 to-indigo-700 p-6 rounded-2xl border border-purple-500 scale-105">
 
           <p className="text-xs bg-purple-500 px-2 py-1 rounded w-fit mb-2">
@@ -1104,13 +1381,28 @@ onChange={(e) => setTaskDate(e.target.value)}
   </div>
 )}
     <button
-      onClick={() => setShowPlanModal(true)}
-      className={`px-4 py-2 rounded-lg text-white ${
-        plan === "free" ? "bg-red-500" : "bg-green-600"
-      }`}
-    >
-      {plan === "free" ? "Upgrade Plan 🚀" : "Pro Plan ✅"}
-    </button>
+
+  onClick={() => {
+    if (company?.plan === "pro") {
+      setActive("reports");
+    } else {
+      setShowPlanModal(true);
+    }
+  }}
+
+  className={`px-4 py-2 rounded-lg text-white ${
+    company?.plan === "free"
+      ? "bg-red-500"
+      : "bg-green-600"
+  }`}
+
+>
+
+  {company?.plan === "free"
+    ? "Upgrade Plan 🚀"
+    : "Pro Plan ✅"}
+
+</button>
 
     {/* Bell Icon */}
     <div
@@ -1176,9 +1468,6 @@ onChange={(e) => setTaskDate(e.target.value)}
   )
 }
 
-// ----------------------------
-// Components
-// ----------------------------
 function SidebarItem({ label, id, setActive }) {
   return (
     <button
