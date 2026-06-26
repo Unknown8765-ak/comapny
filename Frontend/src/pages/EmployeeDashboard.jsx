@@ -1,12 +1,20 @@
 import { useState, useEffect } from "react"
 import { useSelector } from "react-redux"
+import { useDispatch } from "react-redux"
+import { useNavigate } from "react-router-dom"
+import { logout  } from "../features/auth/authSlice"
+
 import { getSingleEmployeeAPI } from "../features/users/usersAPI.js"
 import { getEmployeeTasksAPI ,addTaskUpdateAPI ,addCommentAPI} from "../features/tasks/tasksAPI.js"
 import {getMyRequirementsAPI,createRequirementAPI} from "../features/requirements/requirementsAPI.js"
 import { getNotifications, markAsRead } from "../features/notification/notificationsAPI.js";
+import { createLeaveAPI, getMyLeavesAPI } from "../features/users/leaveAPI.js"
+import {getMySalaryAPI} from "../features/users/salaryAPI.js"
+import LogoutButton from "../components/LogoutButton.jsx"
 
 export default function EmployeePanel() {
-  
+  const dispatch = useDispatch()
+  const navigate = useNavigate()
   const { user } = useSelector((state) => state.auth)
   const [open, setOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null)
@@ -18,15 +26,33 @@ export default function EmployeePanel() {
   const [employee, setEmployee] = useState(null)
   const [tasks, setTasks] = useState([])
   const [requirements, setRequirements] = useState([])
+  const [salaries, setSalaries] = useState([])
 
   const [loading, setLoading] = useState(true)
+
+const [leaves, setLeaves] = useState([])
+const [leaveForm, setLeaveForm] = useState({
+  type: "casual",
+  reason: "",
+  fromDate: "",
+  toDate: ""
+})  
 
   const [form, setForm] = useState({
     title: "",
     description: ""
   })
 
+const fetchSalaries = async () => {
+  try {
+    const res = await getMySalaryAPI()
+    console.log(res)
+    setSalaries(res.data)
+  } catch (err) {
+    console.log(err.message)
 
+  }
+}
   const fetchEmployee = async () => {
     try {
 
@@ -72,6 +98,45 @@ export default function EmployeePanel() {
 
     }
   }
+    const fetchLeaves = async () => {
+  try {
+
+    const res = await getMyLeavesAPI()
+    console.log("emp leave",res.data)
+    setLeaves(res.data)
+
+  } catch (err) {
+
+    console.log(err.message)
+
+  }
+}
+
+const handleApplyLeave = async (e) => {
+
+  e.preventDefault()
+
+  try {
+
+    const res = await createLeaveAPI(leaveForm)
+
+    setLeaves(prev => [res.data, ...prev])
+
+    setLeaveForm({
+      type: "casual",
+      reason: "",
+      fromDate: "",
+      toDate: ""
+    })
+
+    alert("Leave applied successfully 🔥")
+
+  } catch (err) {
+
+    alert(err.message)
+
+  }
+}
 
 const handleAddComment = async () => {
   try {
@@ -142,6 +207,9 @@ const handleAddComment = async () => {
       await fetchEmployee()
       await fetchTasks()
       await fetchRequirements()
+      await fetchLeaves()
+      await fetchSalaries()
+
       setLoading(false)
     }
 
@@ -170,6 +238,25 @@ useEffect(() => {
   return () => clearInterval(interval);
 }, []);
 
+  useEffect(() => {
+
+  if (active === "tasks") {
+    fetchTasks();
+  }
+
+  if (active === "reports") {
+    fetchRequirements();
+  }
+
+  if (active === "leave") {
+    fetchLeaves();
+  }
+  if (active === "salary") {
+  fetchSalaries()
+}
+
+}, [active]);
+
 useEffect(() => {
   const handleClick = () => setOpen(false);
   if (open) {
@@ -185,7 +272,9 @@ useEffect(() => {
 
 
 const renderContent = () => {
-  if (loading) return <p>Loading...</p>
+  if (loading) return <div className="flex justify-center items-center py-10">
+    <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+  </div>
     if (active === "dashboard") {
       return (
         <>
@@ -322,7 +411,6 @@ const renderContent = () => {
 
     </div>
 
-    {/* 💬 Comments Section 🔥 YAHI LAGANA HAI */}
     <div className="mt-6">
       <h3 className="font-bold mb-2">Comments 💬</h3>
 
@@ -381,99 +469,442 @@ const renderContent = () => {
       )
 
     }
+  if (active === "requirements") {
+    return (
+    <>
+      <h1 className="text-2xl font-bold mb-6">
+        Requirements
+      </h1>
 
-    // ---------------- Raise Requirement
-    if (active === "raise") {
-      return (
-        <>
-          <h1 className="text-2xl font-bold mb-6">
+      <div className="grid md:grid-cols-2 gap-6">
+
+        {/* Left Side - Raise Requirement */}
+        <div className="bg-white p-6 rounded-2xl shadow">
+
+          <h2 className="text-xl font-semibold mb-4">
             Raise Requirement
-          </h1>
+          </h2>
 
-          <div className="bg-white p-6 rounded-2xl shadow max-w-xl">
+          <form
+            onSubmit={handleSubmit}
+            className="space-y-4"
+          >
+            <input
+              type="text"
+              placeholder="Requirement Title"
+              value={form.title}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  title: e.target.value
+                })
+              }
+              className="w-full border p-2 rounded"
+              required
+            />
 
-            <form
-              onSubmit={handleSubmit}
-              className="space-y-4"
-            >
+            <textarea
+              placeholder="Description"
+              value={form.description}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  description: e.target.value
+                })
+              }
+              className="w-full border p-2 rounded"
+              required
+            />
 
-              <input
-                type="text"
-                placeholder="Requirement Title"
-                value={form.title}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    title: e.target.value
-                  })
-                }
-                className="w-full border p-2 rounded"
-                required
-              />
+            <button className="bg-blue-600 text-white px-4 py-2 rounded">
+              Submit Requirement
+            </button>
+          </form>
 
-              <textarea
-                placeholder="Description"
-                value={form.description}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    description: e.target.value
-                  })
-                }
-                className="w-full border p-2 rounded"
-                required
-              />
+        </div>
 
-              <button className="bg-blue-600 text-white px-4 py-2 rounded">
-                Submit Requirement
-              </button>
+        {/* Right Side - My Requirements */}
+        <div className="bg-white p-6 rounded-2xl shadow">
 
-            </form>
+          <h2 className="text-xl font-semibold mb-4">
+            My Requirements
+          </h2>
+
+          <ul className="space-y-3">
+
+            {requirements.length === 0 && (
+              <p className="text-gray-500">
+                No requirements found
+              </p>
+            )}
+
+            {requirements.map(req => (
+
+              <li
+                key={req._id}
+                className="flex justify-between border p-3 rounded"
+              >
+                <span>{req.title}</span>
+
+                <span
+                  className={`font-semibold ${
+                    req.status === "approved"
+                      ? "text-green-600"
+                      : req.status === "rejected"
+                      ? "text-red-600"
+                      : "text-yellow-600"
+                  }`}
+                >
+                  {req.status}
+                </span>
+
+              </li>
+
+            ))}
+
+          </ul>
+
+        </div>
+
+      </div>
+    </>
+  )
+}
+
+if (active === "salary") {
+
+  const currentSalary = salaries[0]
+
+  return (
+    <>
+      <h1 className="text-2xl font-bold mb-6">
+        Salary Details
+      </h1>
+
+      {/* Current Salary Card */}
+      {currentSalary && (
+
+        <div className="bg-white p-6 rounded-2xl shadow mb-6">
+
+          <h2 className="text-xl font-semibold mb-4">
+            Current Month Salary
+          </h2>
+
+          <div className="grid md:grid-cols-3 gap-4">
+
+            <div>
+              <p className="text-gray-500">Base Salary</p>
+              <p className="font-bold">
+                ₹{currentSalary.baseSalary}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-gray-500">Net Salary</p>
+              <p className="font-bold text-green-600">
+                ₹{currentSalary.netSalary}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-gray-500">Status</p>
+              <p className="font-bold capitalize">
+                {currentSalary.status}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-gray-500">
+                Present Days
+              </p>
+              <p>
+                {currentSalary.presentDays}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-gray-500">
+                Paid Leaves
+              </p>
+              <p>
+                {currentSalary.paidLeaves}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-gray-500">
+                Unpaid Leaves
+              </p>
+              <p>
+                {currentSalary.unpaidLeaves}
+              </p>
+            </div>
 
           </div>
-        </>
-      )
 
-    }
+        </div>
 
-    // ---------------- My Requirements
+      )}
 
-    if (active === "requirements") {
+      {/* Salary History */}
 
-      return (
-        <>
-          <h1 className="text-2xl font-bold mb-6">
-            My Requirements
-          </h1>
+      <div className="bg-white p-6 rounded-2xl shadow">
 
-          <div className="bg-white p-6 rounded-2xl shadow max-w-xl">
+        <h2 className="text-xl font-semibold mb-4">
+          Salary History
+        </h2>
 
-            <ul className="space-y-3">
+        <table className="w-full">
 
-              {requirements.map(req => (
+          <thead>
 
-                <li
-                  key={req._id}
-                  className="flex justify-between border p-3 rounded"
-                >
+            <tr className="border-b">
 
-                  <span>{req.title}</span>
+              <th className="p-2 text-left">
+                Month
+              </th>
 
-                  <span className="font-semibold">
-                    {req.status}
+              <th className="p-2 text-left">
+                Base Salary
+              </th>
+
+              <th className="p-2 text-left">
+                Net Salary
+              </th>
+
+              <th className="p-2 text-left">
+                Status
+              </th>
+
+            </tr>
+
+          </thead>
+
+          <tbody>
+
+            {salaries.map((salary) => (
+
+              <tr
+                key={salary._id}
+                className="border-b"
+              >
+
+                <td className="p-2">
+                  {salary.month}/{salary.year}
+                </td>
+
+                <td className="p-2">
+                  ₹{salary.baseSalary}
+                </td>
+
+                <td className="p-2">
+                  ₹{salary.netSalary}
+                </td>
+
+                <td className="p-2">
+
+                  <span
+                    className={`px-2 py-1 rounded text-sm ${
+                      salary.status === "paid"
+                        ? "bg-green-100 text-green-700"
+                        : salary.status === "processed"
+                        ? "bg-yellow-100 text-yellow-700"
+                        : "bg-gray-100 text-gray-700"
+                    }`}
+                  >
+                    {salary.status}
                   </span>
 
-                </li>
+                </td>
 
-              ))}
+              </tr>
 
-            </ul>
+            ))}
+
+          </tbody>
+
+        </table>
+
+      </div>
+
+    </>
+  )
+}
+     if (active === "leave") {
+
+  return (
+
+    <>
+      <div className="flex justify-between items-center mb-6">
+
+        <h1 className="text-2xl font-bold">
+          Apply Leave
+        </h1>
+
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-6">
+
+        {/* 🔥 Leave Form */}
+        <div className="bg-white p-6 rounded-2xl shadow">
+
+          <form
+            onSubmit={handleApplyLeave}
+            className="space-y-4"
+          >
+
+            <select
+              value={leaveForm.type}
+              onChange={(e) =>
+                setLeaveForm({
+                  ...leaveForm,
+                  type: e.target.value
+                })
+              }
+              className="w-full border p-2 rounded"
+            >
+
+              <option value="casual">Casual Leave</option>
+              <option value="sick">Sick Leave</option>
+              <option value="paid">Paid Leave</option>
+
+            </select>
+
+            <textarea
+              placeholder="Reason"
+              value={leaveForm.reason}
+              onChange={(e) =>
+                setLeaveForm({
+                  ...leaveForm,
+                  reason: e.target.value
+                })
+              }
+              className="w-full border p-2 rounded"
+              required
+            />
+
+            <div className="grid grid-cols-2 gap-4">
+
+              <div>
+
+                <label className="text-sm text-gray-500">
+                  From Date
+                </label>
+
+                <input
+                  type="date"
+                  value={leaveForm.fromDate}
+                  onChange={(e) =>
+                    setLeaveForm({
+                      ...leaveForm,
+                      fromDate: e.target.value
+                    })
+                  }
+                  className="w-full border p-2 rounded"
+                  required
+                />
+
+              </div>
+
+              <div>
+
+                <label className="text-sm text-gray-500">
+                  To Date
+                </label>
+
+                <input
+                  type="date"
+                  value={leaveForm.toDate}
+                  onChange={(e) =>
+                    setLeaveForm({
+                      ...leaveForm,
+                      toDate: e.target.value
+                    })
+                  }
+                  className="w-full border p-2 rounded"
+                  required
+                />
+
+              </div>
+
+            </div>
+
+            <button className="bg-indigo-600 hover:bg-indigo-700 transition text-white px-4 py-2 rounded-lg">
+
+              Apply Leave
+
+            </button>
+
+          </form>
+
+        </div>
+
+        {/* 🔥 Leave History */}
+        <div className="bg-white p-6 rounded-2xl shadow">
+
+          <h2 className="text-lg font-semibold mb-4">
+            Leave History
+          </h2>
+
+          <div className="space-y-3">
+
+            {leaves.length === 0 && (
+              <p className="text-gray-500">
+                No leaves applied
+              </p>
+            )}
+
+            {leaves.map((leave) => (
+
+              <div
+                key={leave._id}
+                className="border rounded-xl p-4"
+              >
+
+                <div className="flex justify-between">
+
+                  <p className="font-semibold capitalize">
+                    {leave.type} Leave
+                  </p>
+
+                  <span
+                    className={`text-sm px-2 py-1 rounded-full ${
+                      leave.status === "approved"
+                        ? "bg-green-100 text-green-700"
+                        : leave.status === "rejected"
+                        ? "bg-red-100 text-red-700"
+                        : "bg-yellow-100 text-yellow-700"
+                    }`}
+                  >
+                    {leave.status}
+                  </span>
+
+                </div>
+
+                <p className="text-sm text-gray-600 mt-2">
+                  {leave.reason}
+                </p>
+
+                <p className="text-xs text-gray-500 mt-2">
+
+                  {new Date(leave.fromDate).toLocaleDateString("en-IN")}
+                  {" "}→{" "}
+                  {new Date(leave.toDate).toLocaleDateString("en-IN")}
+
+                </p>
+
+              </div>
+
+            ))}
 
           </div>
-        </>
-      )
 
-    }
+        </div>
+
+      </div>
+    </>
+  )
+}
 
     // ---------------- Profile
 
@@ -529,7 +960,7 @@ const renderContent = () => {
    <div className="min-h-screen flex bg-linear-to-br from-gray-100 to-gray-200">
 
       {/* Sidebar */}
-      <div className="w-64 bg-linear-to-b from-gray-900 to-gray-800 text-white p-5 shadow-xl">
+      <div className="w-64 bg-linear-to-b from-gray-900 to-gray-800 text-white p-5 shadow-xl flex flex-col min-h-screen">
 
        <h2 className="text-2xl font-bold mb-8 tracking-wide">
   🚀 Employee Panel
@@ -537,38 +968,17 @@ const renderContent = () => {
 
         <nav className="space-y-2">
 
-          <SidebarItem
-            label="Dashboard"
-            id="dashboard"
-            setActive={setActive}
-          />
-
-          <SidebarItem
-            label="My Tasks"
-            id="tasks"
-            setActive={setActive}
-          />
-
-          <SidebarItem
-            label="Raise Requirement"
-            id="raise"
-            setActive={setActive}
-          />
-
-          <SidebarItem
-            label="My Requirements"
-            id="requirements"
-            setActive={setActive}
-          />
-
-          <SidebarItem
-            label="Profile"
-            id="profile"
-            setActive={setActive}
-          />
+          <SidebarItem label="Dashboard" id="dashboard" setActive={setActive}/>
+          <SidebarItem label="My Tasks" id="tasks" setActive={setActive}/>
+          <SidebarItem label="My Requirements" id="requirements" setActive={setActive}/>
+          <SidebarItem label="Salary" id="salary" setActive={setActive}/>
+          <SidebarItem label="Apply Leave" id="leave" setActive={setActive}/> 
+          <SidebarItem label="Profile" id="profile" setActive={setActive}/>
 
         </nav>
-
+    <div className="mt-auto p-4">
+   <LogoutButton />
+  </div>
       </div>
 
       {/* Content */}
@@ -616,12 +1026,25 @@ const renderContent = () => {
                     : item
                 )
               );
-              if (n.type === "task_assigned") {
-                setActive("tasks");
-              }
-              if (n.type.includes("requirement")) {
-                setActive("requirements");
-                }
+             if (n.type === "task_assigned" ||
+              n.type === "task_comment"
+            ) {
+              setActive("tasks");
+            }
+
+            if (
+              n.type === "requirement_rejected" ||
+              n.type === "requirement_forwarded"
+            ) {
+              setActive("requirements");
+            }
+
+            if (
+              n.type === "leave_approved"||
+              n.type === "leave_rejected"
+            ) {
+              setActive("leave");
+            }
             }}
             className={`p-3 border-b cursor-pointer ${
               n.isRead ? "bg-gray-100" : "bg-white"
@@ -637,18 +1060,14 @@ const renderContent = () => {
       )}
 
     </div>
-
   </div>
 
   {/* 🔽 Existing Content */}
   {renderContent()}
-
-</div>
-
+      </div>  
     </div>
 
   )
-
 }
 
 
