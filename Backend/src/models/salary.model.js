@@ -14,9 +14,8 @@ const salarySchema = new mongoose.Schema({
     required: true
   },
 
-  // 🔥 Salary Month
   month: {
-    type: Number, // 1 - 12
+    type: Number, 
     required: true
   },
 
@@ -25,13 +24,13 @@ const salarySchema = new mongoose.Schema({
     required: true
   },
 
-  // 🔥 FIXED SALARY (base salary)
+
   baseSalary: {
     type: Number,
     required: true
   },
 
-  // 🔥 ATTENDANCE
+ 
   totalWorkingDays: {
     type: Number,
     default: 30
@@ -53,14 +52,13 @@ const salarySchema = new mongoose.Schema({
   },
 
 
-  // 🔥 DEDUCTIONS
   deductions: {
     type: Number,
     default: 0
   },
 
 
-  // 🔥 FINAL SALARY
+  
   netSalary: {
     type: Number,
     default: 0
