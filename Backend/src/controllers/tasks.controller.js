@@ -152,11 +152,7 @@ const getAllTasks = asyncHandler(async (req,res)=>{
 
 
 
-/*
--------------------------
-Get Tasks of Logged Employee
--------------------------
-*/
+
 
 const getEmployeeTasks = asyncHandler(async (req,res)=>{
 
@@ -204,10 +200,9 @@ const addComment = asyncHandler(async (req, res) => {
   let notifyUserId;
 
   if (req.user._id.toString() === task.assignedTo.toString()) {
-    // 👨‍💻 Employee commented → notify HR/Admin
+  
     notifyUserId = task.assignedBy;
   } else {
-    // 👨‍💼 HR/Admin commented → notify Employee
     notifyUserId = task.assignedTo;
   }
 
@@ -259,7 +254,7 @@ const addTaskUpdate = asyncHandler(async (req,res)=>{
 
     task.updates.push({
         message,
-        progress, // 🔥 NEW
+        progress, 
         updatedBy: req.user._id,
         date: new Date()
     })
@@ -287,11 +282,6 @@ const addTaskUpdate = asyncHandler(async (req,res)=>{
 
 
 
-/*
--------------------------
-Delete Task
--------------------------
-*/
 
 const deleteTask = asyncHandler(async (req,res)=>{
     if(!["hr","admin"].includes(req.user.role)){
