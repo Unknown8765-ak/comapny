@@ -17,7 +17,7 @@ const notificationSchema = new mongoose.Schema({
       "requirement_rejected",
       "requirement_forwarded",
       "task_comment",
-       // 🔥 ADD THESE
+  
   "leave_applied",
   "leave_approved",
   "leave_rejected",
@@ -30,7 +30,7 @@ const notificationSchema = new mongoose.Schema({
   title: String,
   message: String,
 
-  // 🔥 kis entity se related hai
+
   relatedId: {
     type: mongoose.Schema.Types.ObjectId
   },
