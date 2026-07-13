@@ -53,7 +53,6 @@ const verifyPayment = asyncHandler(async (req, res) => {
     plan,
   } = req.body;
 
-  // 🔥 GENERATE SIGNATURE
 
   const body =
     razorpay_order_id + "|" + razorpay_payment_id;
@@ -69,8 +68,6 @@ const verifyPayment = asyncHandler(async (req, res) => {
   const isAuthentic =
     expectedSignature === razorpay_signature;
 
-  // 🔥 PAYMENT FAILED
-
   if (!isAuthentic) {
 
     return res.status(400).json({
@@ -79,7 +76,6 @@ const verifyPayment = asyncHandler(async (req, res) => {
     });
 
   }
-  // 🔥 FIND COMPANY
   const companyId = req.user.company;
   const company = await Company.findById(companyId);
 
@@ -91,7 +87,6 @@ const verifyPayment = asyncHandler(async (req, res) => {
     });
 
   }
-  // 🔥 CALCULATE PLAN END DATE
 
   const endDate = new Date();
 
@@ -103,7 +98,6 @@ const verifyPayment = asyncHandler(async (req, res) => {
     endDate.setFullYear(endDate.getFullYear() + 1);
   }
 
-  // 🔥 UPDATE COMPANY
 
   company.plan = "pro";
 
@@ -116,7 +110,6 @@ const verifyPayment = asyncHandler(async (req, res) => {
     razorpay_payment_id;
   await company.save();
 
-  // 🔥 RESPONSE
   // console.log(company)
   res.status(200).json({
     success: true,
