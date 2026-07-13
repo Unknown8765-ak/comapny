@@ -36,12 +36,6 @@ new ApiResponse(201,department,"Department created successfully")
 })
 
 
-/*
--------------------------------
-Get Departments
--------------------------------
-*/
-
 const getDepartments = asyncHandler(async (req,res)=>{
 
     const departments = await Department.find({ 
@@ -96,11 +90,6 @@ throw new ApiError(403,"Only super admin can create department")
 
 
 
-/*
--------------------------------
-Delete Department
--------------------------------
-*/
 
 const deleteDepartment = asyncHandler(async (req,res)=>{
     if(req.user.role !== "admin"){
@@ -127,13 +116,6 @@ throw new ApiError(403,"Only super admin can create department")
 
 })
 
-
-
-/*
--------------------------------
-Add Member to Department
--------------------------------
-*/
 
 const addMemberToDepartment = asyncHandler(async (req,res)=>{
 
