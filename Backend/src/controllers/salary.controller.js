@@ -7,7 +7,7 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { ApiError } from "../utils/ApiError.js";
 import  Task  from "../models/task.model.js"
 
-// ✅ 1. Generate Salary (Admin/HR)
+
 const generateSalary = asyncHandler(async (req, res) => {
 
   const { employeeId, month, year,totalWorkingDays } = req.body;
@@ -16,7 +16,6 @@ const generateSalary = asyncHandler(async (req, res) => {
     throw new ApiError(400, "All fields are required");
   }
 
-  // 🔐 check role
   if (!["admin", "hr"].includes(req.user.role)) {
     throw new ApiError(403, "Unauthorized");
   }
@@ -43,7 +42,6 @@ if (!totalWorkingDays || totalWorkingDays <= 0) {
 
 const baseSalary = employee.monthlySalary;
 
-  // 🔍 get leaves of that month
   const leaves = await Leave.find({
     employee: employeeId,
     company: req.user.company,
@@ -67,7 +65,7 @@ const baseSalary = employee.monthlySalary;
     }
   });
 
-  // 🧠 presentDays calculate
+
   const presentDays = totalWorkingDays - (paidLeaves + unpaidLeaves);
   if (presentDays < 0) {
   throw new ApiError(
@@ -76,7 +74,6 @@ const baseSalary = employee.monthlySalary;
   );
 }
 
-  // 💰 salary calculation
   const perDaySalary = baseSalary / totalWorkingDays;
   const paidDays = presentDays + paidLeaves;
 
@@ -98,7 +95,6 @@ if (existingSalary) {
   throw new ApiError(400, "Salary already generated");
 }
 
-  // 💾 create salary
   const salary = await Salary.create({
     employee: employeeId,
     company: req.user.company,
@@ -113,7 +109,6 @@ if (existingSalary) {
     status: "processed"
   });
 
-  // 🔔 Notification → Employee
   await Notification.create({
     userId: employeeId,
     type: "salary_generated",
@@ -128,7 +123,6 @@ if (existingSalary) {
 });
 
 
-// ✅ 2. Get My Salary (Employee)
 const getMySalary = asyncHandler(async (req, res) => {
 
   const salaries = await Salary.find({
