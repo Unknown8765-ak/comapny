@@ -6,7 +6,7 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { ApiError } from "../utils/ApiError.js";
 
 
-// ✅ 1. Apply Leave (Employee)
+
 const createLeave = asyncHandler(async (req, res) => {
 
   const { type, reason, fromDate, toDate } = req.body;
@@ -65,7 +65,6 @@ if (to < from) {
 });
 
 
-// ✅ 2. Get My Leaves (Employee)
 const getMyLeaves = asyncHandler(async (req, res) => {
 
   const leaves = await Leave.find({
@@ -77,7 +76,6 @@ const getMyLeaves = asyncHandler(async (req, res) => {
 });
 
 
-// ✅ 3. Get All Leaves (Admin / HR)
 const getAllLeaves = asyncHandler(async (req, res) => {
 
   if (!["admin", "hr", "super_admin"].includes(req.user.role)) {
@@ -94,7 +92,7 @@ const getAllLeaves = asyncHandler(async (req, res) => {
 });
 
 
-// ✅ 4. Update Leave Status (Approve / Reject)
+
 const updateLeaveStatus = asyncHandler(async (req, res) => {
 
   if (!["admin", "hr"].includes(req.user.role)) {
@@ -120,7 +118,6 @@ const updateLeaveStatus = asyncHandler(async (req, res) => {
   leave.status = status;
   await leave.save();
 
-  // 🔥 NOTIFICATION → Employee
   await Notification.create({
     userId: leave.employee,
     type: status === "approved" ? "leave_approved" : "leave_rejected",
@@ -135,7 +132,7 @@ const updateLeaveStatus = asyncHandler(async (req, res) => {
 });
 
 
-// ✅ 5. Delete Leave
+
 const deleteLeave = asyncHandler(async (req, res) => {
 
   const { id } = req.params;
